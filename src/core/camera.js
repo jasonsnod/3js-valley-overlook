@@ -4,7 +4,7 @@ export function createCamera() {
   const camera = new THREE.PerspectiveCamera(
     50, // fov
     window.innerWidth / window.innerHeight,
-    0.1, // near
+    0.005, // near — small, the opening shot is millimeters from the eye
     2000, // far — generous, since a valley scene will have distant terrain
   );
 

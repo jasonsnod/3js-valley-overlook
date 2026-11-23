@@ -11,7 +11,7 @@ export function createRenderer(canvas) {
   renderer.toneMappingExposure = 1.0;
 
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap; // PCFSoftShadowMap was removed in r18x
 
   return renderer;
 }
