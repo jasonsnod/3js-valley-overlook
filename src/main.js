@@ -1,11 +1,19 @@
 import { World } from './World.js';
 
 const canvas = document.querySelector('#scene');
-const debug = new URLSearchParams(window.location.search).has('debug');
+const params = new URLSearchParams(window.location.search);
+const debug = params.has('debug');
+const startAt = parseFloat(params.get('t')) || 0; // e.g. ?debug&t=30
 
-const world = new World(canvas, { debug });
-world.start();
+const world = new World(canvas, { debug, startAt });
+world.start(); // renders (black) while the model loads
+
 world
   .build()
-  .then(() => (document.body.dataset.ready = 'true'))
+  .then(() => {
+    // Playback starts once everything is loaded. `?paused` holds it (handy
+    // for screenshots and for inspecting a single moment).
+    if (!params.has('paused')) world.play();
+    document.body.dataset.ready = 'true';
+  })
   .catch((err) => console.error('Failed to build world:', err));

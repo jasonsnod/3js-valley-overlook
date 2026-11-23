@@ -44,8 +44,33 @@ export async function loadHead() {
   const head = new THREE.Group();
   head.name = 'head';
   head.add(model);
+  head.userData.eyes = measureEyes(model, eyes);
   head.position.y = EYE_LEVEL;
   return head;
+}
+
+/**
+ * Center, radius and front-of-cornea depth of each eyeball, in head space.
+ * The person faces +Z, so their right eye is on -X.
+ */
+function measureEyes(model, eyesMesh) {
+  model.updateMatrixWorld(true);
+  const pos = eyesMesh.geometry.attributes.position;
+  const v = new THREE.Vector3();
+  const boxes = { right: new THREE.Box3(), left: new THREE.Box3() };
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(eyesMesh.matrixWorld);
+    boxes[v.x < 0 ? 'right' : 'left'].expandByPoint(v);
+  }
+  const out = {};
+  for (const [side, box] of Object.entries(boxes)) {
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const radius = size.y / 2; // vertical extent isn't affected by the cornea bulge
+    center.z = box.max.z - radius; // true sphere center, behind the cornea
+    out[side] = { center, radius, front: box.max.z };
+  }
+  return out;
 }
 
 /**

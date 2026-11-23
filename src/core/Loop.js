@@ -1,16 +1,16 @@
 /**
  * Drives the animation. Anything with an `update(delta, elapsed)` method
- * can be registered via `add()` and will be ticked every frame.
+ * can be registered via `add()` and will be ticked every frame, then
+ * `render()` draws the frame.
  *
  *   delta   — seconds since the previous frame (clamped to avoid big jumps
  *             after the tab was hidden)
  *   elapsed — seconds since the loop started
  */
 export class Loop {
-  constructor(renderer, scene, camera) {
+  constructor(renderer, render) {
     this.renderer = renderer;
-    this.scene = scene;
-    this.camera = camera;
+    this.render = render;
     this.updatables = [];
     this.lastTime = null;
     this.elapsed = 0;
@@ -44,6 +44,6 @@ export class Loop {
       obj.update(delta, this.elapsed);
     }
 
-    this.renderer.render(this.scene, this.camera);
+    this.render();
   }
 }
