@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { applyIrisMaterial, IRIS_UV } from './irisMaterial.js';
 
 /**
  * The person. Model: "Angelica" by NikZava284 (CC-BY-4.0), built into
@@ -35,11 +36,14 @@ export async function loadHead() {
   const hairMeshes = [];
   model.traverse((obj) => {
     if (!obj.isMesh) return;
-    obj.castShadow = true;
+    // Shadow maps ignore blended transparency, so see-through layers (lashes,
+    // the clear cornea shell, the tear line) would cast solid blocky shadows.
+    obj.castShadow = !obj.material.transparent;
     obj.receiveShadow = true;
     if (obj.material.name === 'Hair') hairMeshes.push(obj);
   });
   hairMeshes.forEach(setUpHair);
+  applyIrisMaterial(eyes.material);
 
   const head = new THREE.Group();
   head.name = 'head';
@@ -50,25 +54,46 @@ export async function loadHead() {
 }
 
 /**
- * Center, radius and front-of-cornea depth of each eyeball, in head space.
- * The person faces +Z, so their right eye is on -X.
+ * Per eye, in head space (the person faces +Z, so their right eye is on -X):
+ *   center      — eyeball center
+ *   radius      — eyeball radius
+ *   pupil       — point on the eye surface at the pupil center
+ *   irisRadius  — iris radius in meters
+ * The pupil is found through the texture layout (UV center of the iris), so
+ * it follows the actual gaze direction of the model's eyes.
  */
 function measureEyes(model, eyesMesh) {
   model.updateMatrixWorld(true);
   const pos = eyesMesh.geometry.attributes.position;
+  const uv = eyesMesh.geometry.attributes.uv;
   const v = new THREE.Vector3();
-  const boxes = { right: new THREE.Box3(), left: new THREE.Box3() };
+  const sides = {
+    right: { box: new THREE.Box3(), pupil: null, best: Infinity, edge: [] },
+    left: { box: new THREE.Box3(), pupil: null, best: Infinity, edge: [] },
+  };
+
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i).applyMatrix4(eyesMesh.matrixWorld);
-    boxes[v.x < 0 ? 'right' : 'left'].expandByPoint(v);
+    const s = sides[v.x < 0 ? 'right' : 'left'];
+    s.box.expandByPoint(v);
+    const du = Math.hypot(uv.getX(i) - IRIS_UV.center.x, uv.getY(i) - IRIS_UV.center.y);
+    if (du < s.best) {
+      s.best = du;
+      s.pupil = v.clone();
+    }
+    if (Math.abs(du - IRIS_UV.radius) < 0.01) s.edge.push(v.clone());
   }
+
   const out = {};
-  for (const [side, box] of Object.entries(boxes)) {
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
+  for (const [side, s] of Object.entries(sides)) {
+    const size = s.box.getSize(new THREE.Vector3());
     const radius = size.y / 2; // vertical extent isn't affected by the cornea bulge
-    center.z = box.max.z - radius; // true sphere center, behind the cornea
-    out[side] = { center, radius, front: box.max.z };
+    const center = s.box.getCenter(new THREE.Vector3());
+    center.z = s.box.max.z - radius;
+    const irisRadius = s.edge.length
+      ? s.edge.reduce((sum, p) => sum + p.distanceTo(s.pupil), 0) / s.edge.length
+      : 0.006;
+    out[side] = { center, radius, pupil: s.pupil, irisRadius };
   }
   return out;
 }
@@ -98,7 +123,10 @@ function setUpHair(mesh) {
   soft.transparent = true;
   soft.depthWrite = false;
 
+  // The solid pass casts shadows (shadow maps honor its alpha cut-out).
+  mesh.castShadow = true;
   const softMesh = new THREE.Mesh(mesh.geometry, soft);
+  softMesh.receiveShadow = true;
   softMesh.name = `${mesh.name}_soft`;
   softMesh.renderOrder = 1;
   softMesh.position.copy(mesh.position);

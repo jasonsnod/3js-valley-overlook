@@ -1,4 +1,5 @@
 node_modules/
+assets-src/terrain/cache/
 dist/
 .DS_Store
 *.log

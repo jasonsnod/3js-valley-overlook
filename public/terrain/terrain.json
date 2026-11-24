@@ -1,0 +1,18 @@
+{
+  "rays": 1024,
+  "rings": 320,
+  "rMin": 12,
+  "rMax": 15000,
+  "layout": [
+    "heights:f32",
+    "field:u8",
+    "sun:u8",
+    "sky:u8"
+  ],
+  "viewpoint": {
+    "lat": 39.208417,
+    "lon": -82.743267
+  },
+  "groundElevation": 287.29392763818834,
+  "attribution": "Elevation: Terrain Tiles (AWS Open Data), from USGS 3DEP"
+}

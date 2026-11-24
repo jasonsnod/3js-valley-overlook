@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { Glow } from '../world/Glow.js';
 import { clamp, smoothstep, progress } from '../timeline/curves.js';
+import { setClipping } from '../core/camera.js';
 
 /**
  * Beat 1 — darkness, then light pulsing up out of it.
@@ -24,9 +24,8 @@ export const OPENING = {
   final: { start: 12.4, rise: 2.0, settleTo: 0.45, settleTime: 3.5 },
   end: 30, // the pull-out begins here (next beat)
 
-  // Where the catchlight sits relative to the pupil center, on the cornea
-  // (meters, head space: +x = viewer's right, +y = up).
-  catchlightOffset: new THREE.Vector3(-0.0013, 0.0013, 0.0004),
+  // (The catchlight's position on the cornea is CATCHLIGHT_OFFSET in
+  // world/catchlights.js — the sun direction is derived from it.)
   glowSize: 0.016, // world size of the glow quad, meters (larger than the frame)
   cameraDistance: 0.25, // telephoto: far back with a very narrow lens
   cameraFov: 1.4, // degrees → ~6 mm of eye fills the frame height
@@ -66,13 +65,9 @@ export function catchlightLevel(t) {
 }
 
 export class OpeningBeat {
-  constructor({ scene, head }) {
-    const eye = head.userData.eyes.right; // the person's right eye
-    this.pupil = head.localToWorld(new THREE.Vector3(eye.center.x, eye.center.y, eye.front));
-
-    this.glow = new Glow(OPENING.glowSize);
-    this.glow.position.copy(this.pupil).add(OPENING.catchlightOffset);
-    scene.add(this.glow);
+  constructor({ catchlights }) {
+    this.catchlights = catchlights;
+    this.pupil = catchlights.pupil; // the person's right eye
   }
 
   /** Is this beat in charge of the camera at time t? */
@@ -83,14 +78,19 @@ export class OpeningBeat {
   poseCamera(camera) {
     camera.position.copy(this.pupil).add(new THREE.Vector3(0, 0, OPENING.cameraDistance));
     camera.lookAt(this.pupil);
+    setClipping(camera, OPENING.cameraDistance);
     if (camera.fov !== OPENING.cameraFov) {
       camera.fov = OPENING.cameraFov;
       camera.updateProjectionMatrix();
     }
   }
 
-  update(t, camera) {
-    this.glow.setLevel(catchlightLevel(t));
-    this.glow.faceCamera(camera);
+  /** The scene stays in total darkness; only the catchlight exists. */
+  lightLevel() {
+    return 0;
+  }
+
+  update(t) {
+    if (t < OPENING.end) this.catchlights.set(catchlightLevel(t), OPENING.glowSize);
   }
 }
